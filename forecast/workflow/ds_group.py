@@ -10,32 +10,27 @@ import pandas as pd
 import boto3
 from botocore.exceptions import ClientError
 
-from util import extract_arn_from_error
+from .util import extract_arn_from_error
 
-REGION = 'ap-northeast-1'
-BUCKET_NAME = 'bill-analyzer-dataset'
-PROJECT = 'bill_analyzer'
+from dotenv import load_dotenv
+load_dotenv(dotenv_path='.env')
+default_ds_freq = os.getenv('DATASET_FREQUENCY')
+print("default ds freq is", default_ds_freq)
 
-DATASET_FREQUENCY = "H"
-TIMESTAMP_FORMAT = "yyyy-MM-dd hh:mm:ss"
+def create(region, bucketName, project, dataset_frequency=default_ds_freq):
+    if region is None or bucketName is None or project is None:
+        print("Please specify region, bucketName, project")
+        return
 
-
-def main():
-
-
-    print(f'REGION={REGION}\nBUCKET_NAME={BUCKET_NAME}\nPROJECT={PROJECT}')
+    print(f'REGION={region}\nbucketName={bucketName}\nproject={project}')
     # set up client
-    session = boto3.Session(region_name=REGION)
+    session = boto3.Session(region_name=region)
     forecast = session.client(service_name='forecast')
-    forecastquery = session.client(service_name='forecastquery')
 
 
     # ================  create project (dataset group)
-
-    trainDataKey = "bill-data/train.csv"
-    datasetName = PROJECT+'_ds'
-    datasetGroupName = PROJECT + '_dsg'
-    s3DataPath = "s3://" + BUCKET_NAME + "/" + trainDataKey
+    datasetName = project+'_ds'
+    datasetGroupName = project + '_dsg'
 
     print("Creating dataset group")
     # create dataset group and get it's ARN
@@ -79,32 +74,27 @@ def main():
             Domain="CUSTOM",
             DatasetType="TARGET_TIME_SERIES",
             DatasetName=datasetName,
-            DataFrequency=DATASET_FREQUENCY,
+            DataFrequency=dataset_frequency,
             Schema=schema
         )
         datasetArn = create_dataset_response['DatasetArm']
         print("Created Dataset ARN: ", datasetGroupArn)
-    except Exception as e:
+    except ClientError as e:
         if e.response['Error']['Code'] == 'ResourceAlreadyExistsException':
             datasetArn = extract_arn_from_error(e)
             print("Dataset ARN: {} already exists, ignoring".format(datasetArn))
         else:
             print("Unexpected error:", e)
             raise e
-        
-
+    
     # add dataset to dataset group (NO DATA YET)
     forecast.update_dataset_group(
         DatasetGroupArn=datasetGroupArn,
         DatasetArns=[datasetArn]
     )
 
+    return datasetGroupArn, datasetArn
 
-    return datasetArn, datasetGroupArn
-
-if __name__ == "__main__":
-    print("MAIN")
-    main()
 
 
 

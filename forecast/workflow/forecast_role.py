@@ -2,8 +2,8 @@ import boto3
 import json
 import time
 
-# note: this require  ADMIN ACCESS
-def create_forecast_role():
+# note: this require ADMIN ACCESS
+def create(wait=60):
     iam = boto3.client("iam")
 
     role_name = "ForecastRoleDemo"
@@ -42,6 +42,8 @@ def create_forecast_role():
         PolicyArn='arn:aws:iam::aws:policy/AmazonS3FullAccess',
         RoleName=role_name
     )
-    time.sleep(60) # wait for a minute to allow IAM role policy attachment to propagate
+    
+    print("Please wait for {} second for policy attachment".format(wait))
+    time.sleep(wait) # wait for a minute to allow IAM role policy attachment to propagate
 
     return role_arn
