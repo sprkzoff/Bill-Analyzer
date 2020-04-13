@@ -1,6 +1,8 @@
 import boto3
 import os
+import time
 from botocore.exceptions import ClientError
+from .util import extract_arn_from_error
 
 getFeatureConfig = lambda freq: {
     "ForecastFrequency": freq,
@@ -61,7 +63,7 @@ def create(
 
 
 def wait(predictorArn, region):
-    session = boto3.Session(region=region)
+    session = boto3.Session(region_name=region)
     forecast = session.client(service_name='forecast')
 
     lastStatus = None
@@ -76,5 +78,6 @@ def wait(predictorArn, region):
 
         if status == 'ACTIVE' or status == 'FAILED':
             break
+        time.sleep(10)
 
-    print('Result:')
+    print('\nResult:', status)
