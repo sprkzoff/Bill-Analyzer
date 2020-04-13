@@ -11,9 +11,8 @@ default_region = os.getenv('REGION')
 default_ts_format = os.getenv('TIMESTAMP_FORMAT')
 default_bucket = os.getenv('BUCKET')
 
-
-
 def upload(
+    datasetImportJobName,
     datasetGroupArn,
     datasetArn,
     roleArn,
@@ -24,13 +23,13 @@ def upload(
     region=default_region, # region of Forecast
     timestampFormat=default_ts_format
 ):
+    print("="*10, "Creating Dataset import job", "="*10)
     session = boto3.Session(region_name=region)
     forecast = session.client(service_name='forecast')
 
     
     print(boto3.Session().resource('s3').Bucket(bucketName).Object(fileKey).upload_file(filePath))
 
-    datasetImportJobName = 'EP_DSIMPORT_JOB_TARGET'
     ds_import_job_response = forecast.create_dataset_import_job(
         DatasetImportJobName=datasetImportJobName,
         DatasetArn=datasetArn,
@@ -51,6 +50,7 @@ def wait(
     importJobArn,
     region # region for data to wait
 ):
+    print("="*10, "Waiting Dataset import job to be complete", "="*10)
     lastStatus = None
     session = boto3.Session(region_name=region)
     forecast = session.client(service_name='forecast')

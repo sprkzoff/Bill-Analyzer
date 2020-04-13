@@ -26,16 +26,16 @@ getFeatureConfig = lambda freq: {
 
 def create(
     datasetGroupArn,
-    project,
+    predictorName,
     region,
     forecastHorizon=24,
     algorithmArn='arn:aws:forecast:::algorithm/Deep_AR_Plus'
 ):
+    print("="*10, "Creating Predictor with {} algorithm".format(algorithmArn), "="*10)
     session = boto3.Session(region_name=region)
     forecast = session.client(service_name="forecast")
 
     FORECAST_FREQUENCY = os.getenv('DATASET_FREQUENCY') # same as freq
-
     predictorName = project+'_deeparp_algo'
     try:
         create_predictor_response = forecast.create_predictor(
@@ -63,6 +63,7 @@ def create(
 
 
 def wait(predictorArn, region):
+    print("="*10, "Waiting for predictor to be trained", "="*10)
     session = boto3.Session(region_name=region)
     forecast = session.client(service_name='forecast')
 
@@ -73,6 +74,7 @@ def wait(predictorArn, region):
         )['Status']
         if status != lastStatus:
             print("\n" + status, end="")
+            lastStatus = status
         else:
             print(".", end="")
 

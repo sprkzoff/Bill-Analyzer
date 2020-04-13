@@ -4,6 +4,7 @@ import time
 
 # note: this require ADMIN ACCESS
 def create(wait=60):
+    print("="*10, "Creating IAM Role", "="*10)
     iam = boto3.client("iam")
 
     role_name = "ForecastRoleDemo"
