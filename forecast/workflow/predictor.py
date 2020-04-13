@@ -25,9 +25,11 @@ getFeatureConfig = lambda freq: {
 }
 
 def create(
-    datasetGroupArn,
-    predictorName,
-    region,
+    datasetGroupArn=None,
+    # specify project name (will be appended by _deep_arp_algo) OR manually predictor name
+    predictorName=None,
+    project=None,
+    region=None,
     forecastHorizon=24,
     algorithmArn='arn:aws:forecast:::algorithm/Deep_AR_Plus'
 ):
@@ -36,7 +38,9 @@ def create(
     forecast = session.client(service_name="forecast")
 
     FORECAST_FREQUENCY = os.getenv('DATASET_FREQUENCY') # same as freq
-    predictorName = project+'_deeparp_algo'
+    if predictorName is None and project is not None:
+        predictorName = project + "_deeparp_model"
+        
     try:
         create_predictor_response = forecast.create_predictor(
             PredictorName=predictorName,

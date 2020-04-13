@@ -5,6 +5,9 @@ import time
 
 import dotenv
 import os
+from botocore.exceptions import ClientError
+from .util import extract_arn_from_error
+
 dotenv.load_dotenv('..')
 
 default_region = os.getenv('REGION')
@@ -28,22 +31,30 @@ def upload(
     forecast = session.client(service_name='forecast')
 
     
-    print(boto3.Session().resource('s3').Bucket(bucketName).Object(fileKey).upload_file(filePath))
+    boto3.Session().resource('s3').Bucket(bucketName).Object(fileKey).upload_file(filePath)
+    try:
+        ds_import_job_response = forecast.create_dataset_import_job(
+            DatasetImportJobName=datasetImportJobName,
+            DatasetArn=datasetArn,
+            DataSource={
+                "S3Config": {
+                    "Path": "s3://{}/{}".format(bucketName, fileKey),
+                    "RoleArn": roleArn
+                }
+            },
+            TimestampFormat=timestampFormat
+        )
 
-    ds_import_job_response = forecast.create_dataset_import_job(
-        DatasetImportJobName=datasetImportJobName,
-        DatasetArn=datasetArn,
-        DataSource={
-            "S3Config": {
-                "Path": "s3://{}/{}".format(bucketName, fileKey),
-                "RoleArn": roleArn
-            }
-        },
-        TimestampFormat=timestampFormat
-    )
+        importJobArn=ds_import_job_response['DatasetImportJobArn']
+    except ClientError as e:
+        if e.response['Error']['Code'] == 'ResourceAlreadyExistsException':
+            importJobArn = extract_arn_from_error(e)
+            print("Data set import job ARN: {} already exists, ignoring".format(importJobArn))
+        else:
+            print("Unexpected error:", e)
+            raise e
 
-    ds_import_job_arn=ds_import_job_response['DatasetImportJobArn']
-    return ds_import_job_arn
+    return importJobArn
 
 
 def wait(
