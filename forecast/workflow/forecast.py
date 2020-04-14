@@ -35,7 +35,6 @@ def wait_create(
     region,
     forecastArn
 ):
-    print("="*10, "Waiting for forecast to be created", "="*10)
     session = boto3.Session(region_name=region)
     forecast = session.client(service_name='forecast')
 

@@ -6,7 +6,7 @@ import time
 import dotenv
 import os
 from botocore.exceptions import ClientError
-from .util import extract_arn_from_error
+from .util import extract_arn_from_error, wait as wait_util
 
 dotenv.load_dotenv('..')
 
@@ -61,19 +61,13 @@ def wait(
     importJobArn,
     region # region for data to wait
 ):
-    print("="*10, "Waiting Dataset import job to be complete", "="*10)
-    lastStatus = None
     session = boto3.Session(region_name=region)
-    forecast = session.client(service_name='forecast')
-    while True:
-        status = forecast.describe_dataset_import_job(DatasetImportJobArn=importJobArn)['Status']
-        if lastStatus != status:
-            print("\n" + status, end="")
-            lastStatus = status
-        else:
-            print(".", end="")
-        if status in ('ACTIVE', 'CREATE_FAILED'): break
-        time.sleep(10)
-    
-    print("Result:", status)
+    forecast = session.client(service_name="forecast")
+
+    wait_util(
+        what="Dataset import to be complete",
+        statusFunc=lambda: forecast.describe_dataset_import_job(
+            DatasetImportJobArn=importJobArn
+        )['Status']
+    )
     

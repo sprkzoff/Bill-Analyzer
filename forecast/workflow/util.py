@@ -21,8 +21,7 @@ def wait(statusFunc, what):
         else:
             print(".", end="")
 
-        if status == 'ACTIVE' or status == 'FAILED':
-            break
+        if 'ACTIVE' in status or 'FAILED' in status: break
         time.sleep(10)
 
     print('\nResult:', status)
