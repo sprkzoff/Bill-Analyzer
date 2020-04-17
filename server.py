@@ -1,7 +1,14 @@
 import json
 import requests
 import shutil
+import io
+import re
 from flask import Flask, request, abort
+
+
+# Imports the Google Cloud client library
+from google.cloud import vision
+from google.cloud.vision import types
 
 from linebot import (
     LineBotApi, WebhookHandler
@@ -32,12 +39,50 @@ if access_token is None or secret is None:
     print("Please set environment variable either manually or in .env")
     exit(1)
 
+image_path = './img.jpg'
+
 #############################
 
 app = Flask(__name__)
 
 line_bot_api = LineBotApi(access_token)
 handler = WebhookHandler(secret)
+
+def detect_text(path):
+    """Detects text in the file."""
+    from google.cloud import vision
+    import io
+    client = vision.ImageAnnotatorClient()
+
+    with io.open(path, 'rb') as image_file:
+        content = image_file.read()
+
+    image = vision.types.Image(content=content)
+
+    response = client.text_detection(image=image)
+    texts = response.text_annotations
+
+    # print(texts)
+
+    text_in_img = []
+
+    # print('Texts:')
+
+    for text in texts:
+        # print('\n"{}"'.format(text.description))
+        text_in_img.append(text.description)
+        vertices = (['({},{})'.format(vertex.x, vertex.y)
+                    for vertex in text.bounding_poly.vertices])
+
+        # print('bounds: {}'.format(','.join(vertices)))
+
+    if response.error.message:
+        raise Exception(
+            '{}\nFor more info on error messages, check: '
+            'https://cloud.google.com/apis/design/errors'.format(
+                response.error.message))
+
+    return text_in_img
 
 
 @app.route("/callback", methods=['POST'])
@@ -61,12 +106,22 @@ def callback():
     try:
         # handler.handle(body, signature)
         if payload_message["type"] == "text": ####### text case
-            print("message form")
+
             ### filter by case
 
-            line_bot_api.reply_message(
-                replyToken,
-                TextSendMessage(text="text jaa"))
+            if payload_message["text"].strip().lower() == "all expense" :
+                
+                # query find all and sum all cost
+                line_bot_api.reply_message(
+                    replyToken,
+                    TextSendMessage(text="Your expense(sum)"))
+            elif payload_message["text"].strip().lower() == "forecast expense" :
+
+                # use aws forecast
+                line_bot_api.reply_message(
+                    replyToken,
+                    TextSendMessage(text="your next expense is ..."))
+
         elif payload_message["type"] == "image": ####### img case
             print("image form")
             ### get link of img and use cloud vision next
@@ -74,14 +129,40 @@ def callback():
             img_link = "https://api-data.line.me/v2/bot/message/"+ payload_message['id'] +"/content"
 
             r=requests.get(img_link, headers={ "Authorization": "Bearer "+access_token  },stream=True)
-            with open('./img.jpg', 'wb') as out_file:
+            with open(image_path, 'wb') as out_file:
                 r.raw.decode_content = True
                 shutil.copyfileobj(r.raw, out_file)
             del r
 
+            price = ""
+            texts = detect_text(image_path)
+            print(texts[1:])
+            check_total = False
+            found_cost = False
+
+            for i in range(1,len(texts)) :
+                # print(text)
+                if not(check_total) and texts[i].lower() in {"total","total:"} and texts[i-1].lower() != "sub" :
+                    print("Found total >> "+ texts[i])
+                    check_total = True
+                if check_total :
+                    if re.match(r'^-?\d+(?:\.\d+)?$', texts[i].strip("$")) is not None :
+                        print("Found Cost >> "+texts[i].strip("$"))
+                        price = texts[i].strip("$")
+                        found_cost = True
+                        break
+            
+            response_text = ""
+
+            if not(found_cost) :
+                response_text = "Sorry,I cannot find your expense"
+            else :
+                response_text = "Your expense is "+ price + "$"
+
             line_bot_api.reply_message(
                 replyToken,
-                TextSendMessage(text="img jaa"))
+                TextSendMessage(text=response_text))
+            
     except InvalidSignatureError:
         print("Invalid signature. Please check your channel access token/channel secret.")
         abort(400)
