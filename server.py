@@ -20,10 +20,17 @@ from linebot.models import (
 #                           #
 #############################
 
+from dotenv import load_dotenv
+load_dotenv(verbose=True)
 
-access_token = 'XMvjusLUYH8wAgmNGVHDuV90vau0s14kSoaNKQbrmQSFfHBSlm9M9uBGZ55deqbBlFzK8Xjm1tLQqkr52vbgESBJudNCjB8wo4bHM1LWJrMEt+KR3BYdB9rAQRODyNkbLWSFBoInK1nKGEG7HejfGQdB04t89/1O/w1cDnyilFU='
-secret = '65b40138d95bc1b81265333cfcd2556a'
+import os
 
+access_token = os.getenv('LINE_ACCESS_TOKEN')
+secret = os.getenv('LINE_SECRET')
+
+if access_token is None or secret is None:
+    print("Please set environment variable either manually or in .env")
+    exit(1)
 
 #############################
 
