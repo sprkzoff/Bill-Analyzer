@@ -4,12 +4,13 @@ import requests
 import shutil
 import io
 import re
+import pandas as pd
 from flask import Flask, request, abort
 import mysql.connector
 from mysql.connector import Error
 
 #
-from forecast.forecast import query
+from forecast.forecast import query as query_forecast, do_forecast
 
 # Imports the Google Cloud client library
 from google.cloud import vision
@@ -52,6 +53,35 @@ app = Flask(__name__)
 line_bot_api = LineBotApi(access_token)
 handler = WebhookHandler(secret)
 
+
+def query_database(sql, arg=None, write=False):
+    host = os.getenv("DB_HOST")
+    db = os.getenv("DB_NAME")
+    user = os.getenv("DB_USER")
+    password = os.getenv("DB_PASSWORD")
+    
+    result = None
+    connection = mysql.connector.connect(
+        host=host,
+        database=db,
+        user=user,
+        password=password
+    )
+    cursor = connection.cursor()
+    print("Executing SQL ", sql, "arg", arg)
+    cursor.execute(sql, arg)
+
+    if cursor.with_rows:
+        result = cursor.fetchall()
+    else:
+        result = cursor.rowcount
+    
+    if connection.is_connected():
+        cursor.close()
+        if write:
+            connection.commit()
+        connection.close()
+    return result
 
 def detect_text(path):
     """Detects text in the file."""
@@ -114,46 +144,90 @@ def callback():
         if payload_message["type"] == "text":  # text case
 
             # filter by case
-
-            if payload_message["text"].strip().lower() == "all expense":
+            msg = payload_message["text"].strip()
+            if msg.lower() == "all expense":
                 # query find all and sum all cost
-                all_expense = 0
-                try:
-                    connection = mysql.connector.connect(host=os.getenv('DB_HOST'),
-                                                         database=os.getenv('DB_NAME'),
-                                                         user=os.getenv('DB_USER'),
-                                                         password=os.getenv('DB_PASSWORD'))
-                    if connection.is_connected():
-                        db_Info = connection.get_server_info()
-                        print("Connected to MySQL Server version ", db_Info)
-                        cursor = connection.cursor()
-                        cursor.execute("select database();")
-                        record = cursor.fetchone()
-                        print("You're connected to database: ", record)
-
-                        cursor = connection.cursor()
-                        cursor.execute("select * from expense;")
-                        record = cursor.fetchall()
-                        all_expense = sum(
-                            [e[2] for e in record if e[1] == user['userId']])
-
-                except Error as e:
-                    print("Error while connecting to MySQL", e)
-                finally:
-                    if (connection.is_connected()):
-                        cursor.close()
-                        connection.close()
-                        print("MySQL connection is closed")
-
+                records = query_database("select expense from expense where username = %s;", (user['userId'],))
+                all_expense = sum(r[0] for r in records)
                 line_bot_api.reply_message(
                     replyToken,
                     TextSendMessage(text="All of your expense : "+str("%.2f" %all_expense)+"$"))
-            elif payload_message["text"].strip().lower() == "forecast expense":
-                
-                # use aws forecast
+            
+            elif msg.lower() == "init":
+                try:
+                    resp = query_database("create table config (k varchar(255) primary key, v varchar(2047));")
+                except Error as e:
+                    resp = "error: " + str(e)
+                finally:
+                    line_bot_api.reply_message(
+                        replyToken,
+                        TextSendMessage(text=resp)
+                    )
+
+            elif "query" in msg.lower(): # sql injection !!
+                sql = msg[msg.find("query")+5:]
+                try:
+                    records = query_database(sql)
+                    resp = str(records)
+                except Exception as e:
+                    resp = "error: " + str(e)
                 line_bot_api.reply_message(
                     replyToken,
-                    TextSendMessage(text="your next expense is ..."))
+                    TextSendMessage(text=resp)
+                )
+            elif msg.lower() == "forecast expense now": # create forcast   
+                records = query_database('select created_at, expense, username from expense;')
+
+                df = pd.DataFrame(records)
+                print("="*10)
+                print(df)
+                print("="*10)
+                df.to_csv('tmp.csv', header=False, index=False)
+
+                REGION = os.getenv('REGION')
+                BUCKET_NAME = os.getenv('BUCKET_NAME')
+                PROJECT = os.getenv('PROJECT')
+                
+
+                records = query_database("select v from config where k = 'lock';")
+                if len(records) == 0 or records[0][0] == 'false':
+                    query_database("insert into config values (%s, %s) on duplicate key update v = %s;", ('lock', 'true', 'true'))
+                    try:
+                        line_bot_api.reply_message(
+                            replyToken,
+                            TextSendMessage(text="Please wait while forecast is being created"))
+                        do_forecast(REGION, BUCKET_NAME, PROJECT, trainData='tmp.csv')
+                    except Error as e:
+                        print("Error when forecast", e)
+                    finally:
+                        query_database('insert into config values (%s, %s) on duplicate key update v = %s;', ('lock', 'false', 'false'))
+                else:
+                        line_bot_api.reply_message(
+                            replyToken,
+                            TextSendMessage(text="already forecasting, please wait..."))
+                # use aws forecast
+                
+            elif msg.lower().startswith("forecast expense"): # query forecast
+                REGION = os.getenv('REGION')
+                if "for:" in msg.lower():
+                    idx = msg.lower().find("for:")
+                    name = msg[idx+4:].strip()
+                else:
+                    name = user['userId'] 
+
+                print("name is", name)
+                records = query_database("select v from config where k = 'lastForecastArn';")
+                if len(records) == 0:
+                    resp = "NO FORECAST"
+                else:
+                    forecastArn = records[0][0]
+                    resp = query_forecast(REGION, forecastArn, name)
+                    resp = str(resp)
+                    # use aws forecast
+                line_bot_api.reply_message(
+                    replyToken,
+                    TextSendMessage(text=("your next expense is ..." + resp)[:1999]))
+            
 
         elif payload_message["type"] == "image":  # img case
             print("image form")
@@ -224,6 +298,11 @@ def callback():
                 replyToken,
                 TextSendMessage(text=response_text))
 
+        else:
+            line_bot_api.reply_message(
+                replyToken,
+                TextSendMessage("sorry i don't know how to reply")
+            )
     except InvalidSignatureError:
         print("Invalid signature. Please check your channel access token/channel secret.")
         abort(400)
@@ -244,4 +323,4 @@ def handle_message(event):
 
 
 if __name__ == "__main__":
-    app.run(host='localhost', port=80)
+    app.run(host='localhost', port=3000)

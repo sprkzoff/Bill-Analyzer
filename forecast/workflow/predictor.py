@@ -30,7 +30,7 @@ def create(
     predictorName=None,
     project=None,
     region=None,
-    forecastHorizon=24,
+    forecastHorizon=1,
     algorithmArn='arn:aws:forecast:::algorithm/Deep_AR_Plus'
 ):
     print("="*10, "Creating Predictor with {} algorithm".format(algorithmArn), "="*10)
@@ -50,7 +50,7 @@ def create(
             PerformHPO=False,
             EvaluationParameters={
                 "NumberOfBacktestWindows": 1,
-                "BackTestWindowOffset": 24
+                "BackTestWindowOffset": forecastHorizon,
             },
             InputDataConfig={"DatasetGroupArn": datasetGroupArn},
             FeaturizationConfig=getFeatureConfig(FORECAST_FREQUENCY)
