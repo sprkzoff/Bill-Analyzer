@@ -1,2 +1,4 @@
 python-dotenv
 line-bot-sdk
+mysql-connector
+pandas
