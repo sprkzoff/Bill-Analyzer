@@ -52,7 +52,7 @@ def query(
 
     return forecastquery.query_forecast(
         ForecastArn=forecastArn,
-        Filters=filter,
+        Filters=filters,
     )
 
 def export(

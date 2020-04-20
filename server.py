@@ -8,6 +8,8 @@ from flask import Flask, request, abort
 import mysql.connector
 from mysql.connector import Error
 
+#
+from forecast.forecast import query
 
 # Imports the Google Cloud client library
 from google.cloud import vision
@@ -147,7 +149,7 @@ def callback():
                     replyToken,
                     TextSendMessage(text="All of your expense : "+str("%.2f" %all_expense)+"$"))
             elif payload_message["text"].strip().lower() == "forecast expense":
-
+                
                 # use aws forecast
                 line_bot_api.reply_message(
                     replyToken,
