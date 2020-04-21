@@ -77,7 +77,7 @@ def create(region, bucketName, project, dataset_frequency=default_ds_freq):
             DataFrequency=dataset_frequency,
             Schema=schema
         )
-        datasetArn = create_dataset_response['DatasetArm']
+        datasetArn = create_dataset_response['DatasetArn']
         print("Created Dataset ARN: ", datasetGroupArn)
     except ClientError as e:
         if e.response['Error']['Code'] == 'ResourceAlreadyExistsException':
