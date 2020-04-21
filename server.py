@@ -191,16 +191,18 @@ def callback():
 
                 records = query_database("select v from config where k = 'lock';")
                 if len(records) == 0 or records[0][0] == 'false':
-                    query_database("insert into config values (%s, %s) on duplicate key update v = %s;", ('lock', 'true', 'true'))
+                    query_database("insert into config values (%s, %s) on duplicate key update v = %s;", ('lock', 'true', 'true'), write=True)
                     try:
                         line_bot_api.reply_message(
                             replyToken,
                             TextSendMessage(text="Please wait while forecast is being created"))
-                        do_forecast(REGION, BUCKET_NAME, PROJECT, trainData='tmp.csv')
+                        forecastArn = do_forecast(REGION, BUCKET_NAME, PROJECT, trainData='tmp.csv')
+                        query_database('insert into config values (%s, %s) on duplicate key update v = %s;', ('lastForecastArn', forecastArn, forecastArn), write=True)
                     except Error as e:
                         print("Error when forecast", e)
                     finally:
-                        query_database('insert into config values (%s, %s) on duplicate key update v = %s;', ('lock', 'false', 'false'))
+                        query_database('insert into config values (%s, %s) on duplicate key update v = %s;', ('lock', 'false', 'false'), write=True)
+
                 else:
                         line_bot_api.reply_message(
                             replyToken,
@@ -221,12 +223,14 @@ def callback():
                     resp = "NO FORECAST"
                 else:
                     forecastArn = records[0][0]
-                    resp = query_forecast(REGION, forecastArn, name)
-                    resp = str(resp)
+                    print("forecastArn =", forecastArn, "name =", str(name).lower())
+                    forecastResult = query_forecast(REGION, forecastArn, str(name).lower())
+                    resp = forecastResult['p50'][0]['Value']
                     # use aws forecast
                 line_bot_api.reply_message(
                     replyToken,
-                    TextSendMessage(text=("your next expense is ..." + resp)[:1999]))
+                    TextSendMessage(text=("your next expense is %.2f" % resp))
+                )
             
 
         elif payload_message["type"] == "image":  # img case
