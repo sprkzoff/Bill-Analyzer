@@ -79,6 +79,7 @@ def query_database(sql, arg=None, write=False):
     if connection.is_connected():
         cursor.close()
         if write:
+            print("commited!")
             connection.commit()
         connection.close()
     return result
@@ -178,16 +179,33 @@ def callback():
             elif msg.lower() == "forecast expense now": # create forcast   
                 records = query_database('select created_at, expense, username from expense;')
 
-                df = pd.DataFrame(records)
+                # convert records to DF
+                df = pd.DataFrame(records, columns=['timestamp', 'target_value', 'item_id'])
+                df['timestamp'] = pd.to_datetime(df['timestamp'])
+                # fill missing days if 
+                dmin = df['timestamp'].min()
+                dmax = df['timestamp'].max()
+                dmin, dmax
+                # fill missing data
+                if (dmax - dmin) < pd.Timedelta(20, 'D'):
+                    dmin = dmax - pd.Timedelta(20, 'D')
+                    
+                    rows = pd.DataFrame([(dmin, float('nan'), name) for name in df['item_id'].unique()], columns=['timestamp', 'target_value', 'item_id'])
+                    print(rows)
+                    df  = df.append(rows)
+
+                grouped = df.groupby(['item_id']).resample('D', on='timestamp').sum().reset_index()
+
                 print("="*10)
-                print(df)
+                print(grouped)
                 print("="*10)
-                df.to_csv('tmp.csv', header=False, index=False)
+                grouped['timestamp'] = pd.to_datetime(grouped['timestamp']) + pd.Timedelta(1, 's')
+                grouped[['timestamp', 'target_value', 'item_id']].to_csv('tmp.csv', header=False, index=False)
 
                 REGION = os.getenv('REGION')
                 BUCKET_NAME = os.getenv('BUCKET_NAME')
                 PROJECT = os.getenv('PROJECT')
-                
+
 
                 records = query_database("select v from config where k = 'lock';")
                 if len(records) == 0 or records[0][0] == 'false':
@@ -207,7 +225,6 @@ def callback():
                         line_bot_api.reply_message(
                             replyToken,
                             TextSendMessage(text="already forecasting, please wait..."))
-                # use aws forecast
                 
             elif msg.lower().startswith("forecast expense"): # query forecast
                 REGION = os.getenv('REGION')
