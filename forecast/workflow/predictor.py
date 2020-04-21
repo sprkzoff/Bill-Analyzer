@@ -31,7 +31,7 @@ def create(
     project=None,
     region=None,
     forecastHorizon=1,
-    algorithmArn='arn:aws:forecast:::algorithm/Deep_AR_Plus'
+    algorithmArn='arn:aws:forecast:::algorithm/ETS'
 ):
     print("="*10, "Creating Predictor with {} algorithm".format(algorithmArn), "="*10)
     session = boto3.Session(region_name=region)

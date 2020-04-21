@@ -55,3 +55,14 @@ def do_forecast(region, bucketName, project, trainData):
 
 def query(region, forecastArn, item_id):
     return forecast.query(region=region, forecastArn=forecastArn, filters={"item_id": item_id})['Forecast']['Predictions']
+
+
+import dotenv
+if __name__ == "__main__":
+    dotenv.load_dotenv()
+    REGION = os.getenv('REGION')
+    print(query(
+        REGION,
+        'arn:aws:forecast:ap-northeast-1:647525257129:forecast/bill_analyzer_forecast_2020_52_14_12_04_42',
+        'u8b7885ba3814bbc86a45cd1a0a82e6ce',
+    ))
