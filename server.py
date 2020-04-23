@@ -8,6 +8,7 @@ import pandas as pd
 from flask import Flask, request, abort
 import mysql.connector
 from mysql.connector import Error
+from OpenSSL import SSL
 
 #
 from forecast.forecast import query as query_forecast, do_forecast
@@ -32,6 +33,10 @@ from linebot.models import (
 #          setting          #
 #                           #
 #############################
+
+context = SSL.Context(SSL.SSLv23_METHOD)
+cer = os.path.join(os.path.dirname(__file__), 'Path to Cert')
+key = os.path.join(os.path.dirname(__file__), 'Path to key')
 
 from dotenv import load_dotenv
 load_dotenv(verbose=True)
@@ -344,4 +349,5 @@ def handle_message(event):
 
 
 if __name__ == "__main__":
-    app.run(host='localhost', port=3000)
+    context = (cer, key)
+    app.run(host='0.0.0.0', port=443,ssl_context=context)
